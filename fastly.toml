@@ -7,3 +7,6 @@ language = "rust"
 manifest_version = 3
 name = "Default starter for Rust"
 service_id = "PPssI5QU4fcB0Ved75eki0"
+
+[dependencies]
+fastly = { path = "/Users/skiao/Documents/Development/compute/ExecuteD/wasm_abi/rust/fastly" }

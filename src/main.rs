@@ -2,6 +2,11 @@
 
 use fastly::http::{header, Method, StatusCode};
 use fastly::{mime, Error, Request, Response};
+use std::time::Duration;
+
+use fastly::erl::ERLError;
+use fastly::erl::{CounterDuration, Penaltybox, RateCounter, RateWindow, ERL};
+
 
 /// The entry point for your application.
 ///
@@ -11,8 +16,44 @@ use fastly::{mime, Error, Request, Response};
 ///
 /// If `main` returns an error, a 500 error response will be delivered to the client.
 
+
+
 #[fastly::main]
 fn main(req: Request) -> Result<Response, Error> {
+// ERL section
+        // Open the rate counter and penalty box.
+    let rc = RateCounter::open("rc");
+    let pb = Penaltybox::open("pb");
+
+    // Open the Edge Rate Limiter using the rate counter and penalty box.
+    let limiter = ERL::open(rc, pb);
+
+    // Rate limit based upon the client's IP address.
+    let entry = req.get_client_ip_addr().unwrap().to_string();
+
+        // Check if the request should be blocked and update the rate counter.
+    let result = limiter.check_rate(
+        &entry,                   // The client to rate limit.
+        1,                        // The number of requests this execution counts as.
+        RateWindow::SixtySecs,    // The time window to count requests within.
+        100,                      // The maximum number of requests allowed within the rate window.
+        Duration::from_secs(300), // The duration to block the client if the rate limit is exceeded.
+    );
+
+    let is_blocked: bool = match result {
+        Ok(is_blocked) => is_blocked,
+        Err(err) => {
+            // Failed to check the rate. This is unlikely but it's up to you if you'd like to fail open or closed.
+            eprintln!("Failed to check the rate: {:?}", err);
+            false
+        }
+    };
+
+    if is_blocked {
+        return Ok(Response::from_status(StatusCode::TOO_MANY_REQUESTS)
+            .with_body_text_plain("You have sent too many requests recently. Try again later."));
+    }
+// End ERL
     // Log service version
     println!(
         "FASTLY_SERVICE_VERSION: {}",
@@ -66,6 +107,8 @@ fn main(req: Request) -> Result<Response, Error> {
                 .with_content_type(mime::TEXT_HTML_UTF_8)
                 .with_body(include_str!("welcome-to-compute.html")))
         }
+
+
 
         // Catch all other requests and return a 404.
         _ => Ok(Response::from_status(StatusCode::NOT_FOUND)

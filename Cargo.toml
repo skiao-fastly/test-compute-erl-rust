@@ -12,3 +12,4 @@ debug = 1
 
 [dependencies]
 fastly = "0.9.8"
+fastly = { path = "/Users/skiao/Documents/Development/compute/ExecuteD/wasm_abi/rust/fastly" }
